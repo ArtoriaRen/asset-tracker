@@ -119,7 +119,10 @@
       <div class="total" id="totalValue">$0<small id="totalCurrencyNote"></small></div>
       <div class="subrow">
         <span class="status" id="statusLine"><span class="statusdot ok" id="statusDot"></span><span id="statusText">Synced</span></span>
-        <button class="iconbtn" id="refreshBtn" title="Refresh">&#8635;</button>
+        <span>
+          <button class="iconbtn" id="hideToggleBtn" title="Hide amounts"></button>
+          <button class="iconbtn" id="refreshBtn" title="Refresh">&#8635;</button>
+        </span>
       </div>
     </div>
   </header>
@@ -199,7 +202,7 @@
    See SETUP.md for how to get an OAuth Client ID.
    ========================================================================= */
 const CONFIG = {
-  GOOGLE_CLIENT_ID: "1007232720641-un1l44dpdrv8a9ommpa9r1630nior523.apps.googleusercontent.com",
+  GOOGLE_CLIENT_ID: "YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com",
   DEFAULT_SPREADSHEET_ID: "1M6QumdJ0TzUD_ogxrGEHJmNYAtzcAJ97m2pXCqP3kMk",
   DEFAULT_GID: "0",
 };
@@ -208,6 +211,24 @@ const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
 
 const LS_KEY_SHEET = "assetTracker.sheetConfig";
 const LS_KEY_TOKEN = "assetTracker.tokenCache"; // in-memory-ish; access tokens are short-lived
+const LS_KEY_HIDE = "assetTracker.hideAmounts";
+
+const EYE_OPEN_SVG =
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"></path>' +
+  '<circle cx="12" cy="12" r="3"></circle></svg>';
+const EYE_OFF_SVG =
+  '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" ' +
+  'stroke-linecap="round" stroke-linejoin="round"><path d="M17.94 17.94A10.94 10.94 0 0 1 12 20c-7 0-11-8-11-8a21.86 ' +
+  '21.86 0 0 1 5.06-6.06M9.9 4.24A10.94 10.94 0 0 1 12 4c7 0 11 8 11 8a21.82 21.82 0 0 1-2.16 3.19m-6.72-1.07a3 3 0 1 ' +
+  '1-4.24-4.24"></path><line x1="1" y1="1" x2="23" y2="23"></line></svg>';
+
+function loadHideAmounts(){
+  return localStorage.getItem(LS_KEY_HIDE) === "1";
+}
+function saveHideAmounts(hidden){
+  localStorage.setItem(LS_KEY_HIDE, hidden ? "1" : "0");
+}
 
 let state = {
   tokenClient: null,
@@ -220,6 +241,7 @@ let state = {
   valueColIndex: -1, // index into headers for the numeric "value/amount" column
   categoryColIndex: -1,
   editingRowNumber: null, // null = adding new
+  hideAmounts: loadHideAmounts(),
 };
 
 // ---------- small utils ----------
@@ -446,13 +468,15 @@ function render(){
   if (state.valueColIndex >= 0){
     total = state.rows.reduce((sum, r) => sum + parseNumber(r.cells[state.valueColIndex]), 0);
   }
-  $("totalValue").innerHTML = (state.valueColIndex >= 0 ? formatMoney(total) : "—") +
+  const totalText = state.hideAmounts ? "••••••" : (state.valueColIndex >= 0 ? formatMoney(total) : "—");
+  $("totalValue").innerHTML = totalText +
     "<small>" + state.rows.length + " asset" + (state.rows.length === 1 ? "" : "s") + "</small>";
 
   // breakdown by category
+  // (hidden entirely while amounts are hidden — bar widths alone would leak relative values)
   const breakdownEl = $("breakdown");
   breakdownEl.innerHTML = "";
-  if (state.categoryColIndex >= 0 && state.valueColIndex >= 0 && state.rows.length){
+  if (!state.hideAmounts && state.categoryColIndex >= 0 && state.valueColIndex >= 0 && state.rows.length){
     const byCat = {};
     state.rows.forEach(r => {
       const cat = String(r.cells[state.categoryColIndex] || "Uncategorized").trim() || "Uncategorized";
@@ -481,7 +505,9 @@ function render(){
   const nameColIndex = 0; // first column is treated as the primary label
   state.rows.forEach(r => {
     const name = r.cells[nameColIndex] || "(untitled)";
-    const valueText = state.valueColIndex >= 0 ? formatMoney(parseNumber(r.cells[state.valueColIndex])) : "";
+    const valueText = state.hideAmounts
+      ? (state.valueColIndex >= 0 ? "••••" : "")
+      : (state.valueColIndex >= 0 ? formatMoney(parseNumber(r.cells[state.valueColIndex])) : "");
     const metaParts = state.headers
       .map((h, i) => (i !== nameColIndex && i !== state.valueColIndex && r.cells[i]) ? `${h}: ${r.cells[i]}` : null)
       .filter(Boolean);
@@ -626,10 +652,25 @@ function saveSettings(){
   if (state.accessToken) loadSheet();
 }
 
+// ---------- hide amounts toggle ----------
+function updateHideToggleIcon(){
+  const btn = $("hideToggleBtn");
+  btn.innerHTML = state.hideAmounts ? EYE_OFF_SVG : EYE_OPEN_SVG;
+  btn.title = state.hideAmounts ? "Show amounts" : "Hide amounts";
+}
+function toggleHideAmounts(){
+  state.hideAmounts = !state.hideAmounts;
+  saveHideAmounts(state.hideAmounts);
+  updateHideToggleIcon();
+  if (state.rows.length || state.headers.length) render();
+}
+
 // ---------- wire up ----------
 window.addEventListener("DOMContentLoaded", () => {
   checkConfigWarning();
   $("gate").style.display = "flex";
+  updateHideToggleIcon();
+  $("hideToggleBtn").addEventListener("click", toggleHideAmounts);
   $("refreshBtn").addEventListener("click", loadSheet);
   $("addFab").addEventListener("click", openAddSheet);
   $("cancelEditBtn").addEventListener("click", closeEditSheet);
