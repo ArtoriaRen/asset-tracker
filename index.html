@@ -1,0 +1,649 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<meta name="theme-color" content="#0f172a" />
+<title>Asset Tracker</title>
+<link rel="manifest" href="manifest.json" />
+<link rel="icon" href="icons/icon-192.png" />
+<link rel="apple-touch-icon" href="icons/icon-192.png" />
+<meta name="mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-capable" content="yes" />
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+<style>
+  :root{
+    --bg:#0b1120; --bg2:#111827; --card:#161e2e; --border:#243044;
+    --text:#e8edf6; --muted:#93a1b8; --accent:#22c55e; --accent-dim:#14532d;
+    --danger:#ef4444; --warn:#f59e0b;
+    color-scheme: dark;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;background:var(--bg);color:var(--text);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    -webkit-tap-highlight-color:transparent;}
+  #app{max-width:560px;margin:0 auto;min-height:100vh;display:flex;flex-direction:column;
+    padding-bottom:env(safe-area-inset-bottom);}
+  header.top{padding:20px 20px 12px;position:sticky;top:0;background:linear-gradient(180deg,var(--bg) 80%,transparent);
+    z-index:5;}
+  header.top h1{font-size:15px;font-weight:600;letter-spacing:.04em;text-transform:uppercase;color:var(--muted);margin:0 0 4px;}
+  .total{font-size:36px;font-weight:700;letter-spacing:-0.02em;}
+  .total small{font-size:14px;color:var(--muted);font-weight:500;margin-left:6px;}
+  .subrow{display:flex;justify-content:space-between;align-items:center;margin-top:2px;}
+  .statusdot{width:8px;height:8px;border-radius:50%;display:inline-block;margin-right:6px;}
+  .statusdot.ok{background:var(--accent);}
+  .statusdot.err{background:var(--danger);}
+  .statusdot.pending{background:var(--warn);}
+  .status{font-size:12px;color:var(--muted);display:flex;align-items:center;}
+  .iconbtn{background:none;border:none;color:var(--muted);font-size:18px;cursor:pointer;padding:6px;line-height:1;}
+  .iconbtn:active{opacity:.6;}
+
+  main{flex:1;padding:0 20px 100px;}
+
+  .card{background:var(--card);border:1px solid var(--border);border-radius:14px;padding:16px;margin-bottom:12px;}
+
+  .breakdown{margin:8px 0 20px;}
+  .breakdown .row{display:flex;align-items:center;gap:10px;margin-bottom:8px;font-size:13px;}
+  .breakdown .label{width:92px;flex-shrink:0;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+  .breakdown .bar-track{flex:1;height:8px;background:var(--bg2);border-radius:4px;overflow:hidden;}
+  .breakdown .bar-fill{height:100%;background:var(--accent);border-radius:4px;}
+  .breakdown .amt{width:78px;text-align:right;flex-shrink:0;font-variant-numeric:tabular-nums;}
+
+  .asset{display:flex;justify-content:space-between;align-items:flex-start;gap:12px;cursor:pointer;}
+  .asset .name{font-weight:600;font-size:15px;}
+  .asset .meta{color:var(--muted);font-size:12.5px;margin-top:2px;}
+  .asset .value{font-weight:700;font-size:16px;white-space:nowrap;font-variant-numeric:tabular-nums;}
+  .asset .chev{color:var(--muted);font-size:12px;margin-left:4px;}
+
+  .section-title{font-size:12px;text-transform:uppercase;letter-spacing:.06em;color:var(--muted);margin:24px 0 10px;}
+
+  .empty{color:var(--muted);font-size:14px;text-align:center;padding:40px 20px;}
+
+  .fab{position:fixed;right:20px;bottom:28px;width:56px;height:56px;border-radius:50%;
+    background:var(--accent);color:#04220f;border:none;font-size:28px;font-weight:400;
+    box-shadow:0 8px 24px rgba(34,197,94,.35);cursor:pointer;z-index:10;
+    display:flex;align-items:center;justify-content:center;}
+  .fab:active{transform:scale(0.95);}
+
+  /* Sign-in screen */
+  .gate{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;
+    padding:40px 28px;text-align:center;gap:14px;}
+  .gate .logo{width:64px;height:64px;border-radius:18px;margin-bottom:10px;}
+  .gate h2{margin:0;font-size:20px;}
+  .gate p{margin:0;color:var(--muted);font-size:14px;line-height:1.5;max-width:340px;}
+  .btn{appearance:none;border:none;border-radius:12px;padding:14px 22px;font-size:15px;font-weight:600;
+    cursor:pointer;}
+  .btn.primary{background:var(--accent);color:#04220f;}
+  .btn.ghost{background:transparent;color:var(--muted);border:1px solid var(--border);}
+  .btn.danger{background:transparent;color:var(--danger);border:1px solid rgba(239,68,68,.4);}
+  .btn:active{opacity:.75;}
+  .btn:disabled{opacity:.45;cursor:default;}
+
+  .config-warning{background:#3a2410;border:1px solid #7c4a12;color:#fbbf24;font-size:13px;
+    border-radius:10px;padding:12px 14px;margin:0 20px 12px;line-height:1.5;}
+  .config-warning code{background:rgba(0,0,0,.25);padding:1px 5px;border-radius:4px;}
+
+  /* Modal / sheet */
+  .sheet-backdrop{position:fixed;inset:0;background:rgba(0,0,0,.55);z-index:20;display:flex;
+    align-items:flex-end;opacity:0;pointer-events:none;transition:opacity .18s;}
+  .sheet-backdrop.open{opacity:1;pointer-events:auto;}
+  .sheet{background:var(--bg2);width:100%;max-width:560px;margin:0 auto;border-radius:20px 20px 0 0;
+    padding:20px 20px calc(24px + env(safe-area-inset-bottom));max-height:88vh;overflow-y:auto;
+    transform:translateY(16px);transition:transform .18s;}
+  .sheet-backdrop.open .sheet{transform:translateY(0);}
+  .sheet h3{margin:0 0 16px;font-size:17px;}
+  .field{margin-bottom:14px;}
+  .field label{display:block;font-size:12.5px;color:var(--muted);margin-bottom:6px;}
+  .field input, .field select{width:100%;background:var(--card);border:1px solid var(--border);
+    color:var(--text);border-radius:10px;padding:11px 12px;font-size:15px;}
+  .field input:focus, .field select:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .sheet-actions{display:flex;gap:10px;margin-top:18px;}
+  .sheet-actions .btn{flex:1;}
+  .toast{position:fixed;left:50%;bottom:100px;transform:translateX(-50%);background:#1f2937;
+    color:var(--text);padding:10px 16px;border-radius:10px;font-size:13.5px;z-index:40;
+    box-shadow:0 6px 20px rgba(0,0,0,.4);opacity:0;pointer-events:none;transition:opacity .2s;}
+  .toast.show{opacity:1;}
+  .spin{display:inline-block;width:14px;height:14px;border:2px solid rgba(255,255,255,.25);
+    border-top-color:var(--muted);border-radius:50%;animation:spin .7s linear infinite;margin-right:6px;
+    vertical-align:-2px;}
+  @keyframes spin{to{transform:rotate(360deg);}}
+  a{color:var(--accent);}
+</style>
+</head>
+<body>
+<div id="app">
+
+  <header class="top">
+    <h1>Asset Tracker</h1>
+    <div id="totalBlock" style="display:none;">
+      <div class="total" id="totalValue">$0<small id="totalCurrencyNote"></small></div>
+      <div class="subrow">
+        <span class="status" id="statusLine"><span class="statusdot ok" id="statusDot"></span><span id="statusText">Synced</span></span>
+        <button class="iconbtn" id="refreshBtn" title="Refresh">&#8635;</button>
+      </div>
+    </div>
+  </header>
+
+  <div id="configWarning" class="config-warning" style="display:none;"></div>
+
+  <main id="mainArea">
+    <!-- Sign-in gate -->
+    <div class="gate" id="gate" style="display:none;">
+      <img src="icons/icon-192.png" class="logo" alt="" />
+      <h2>Track your assets</h2>
+      <p id="gateText">Sign in with Google to sync live with your Assets spreadsheet.</p>
+      <button class="btn primary" id="signInBtn">Sign in with Google</button>
+      <button class="btn ghost" id="settingsFromGateBtn">Sheet settings</button>
+    </div>
+
+    <!-- Loading -->
+    <div class="empty" id="loadingState" style="display:none;"><span class="spin"></span>Loading your sheet…</div>
+
+    <!-- Content -->
+    <div id="content" style="display:none;">
+      <div class="section-title" id="breakdownTitle" style="display:none;">By category</div>
+      <div class="breakdown" id="breakdown"></div>
+
+      <div class="section-title">Assets</div>
+      <div id="assetList"></div>
+      <div class="empty" id="emptyState" style="display:none;">No assets yet — tap + to add your first one.</div>
+    </div>
+  </main>
+
+  <button class="fab" id="addFab" style="display:none;" title="Add asset">+</button>
+</div>
+
+<!-- Add/Edit sheet -->
+<div class="sheet-backdrop" id="editBackdrop">
+  <div class="sheet">
+    <h3 id="editTitle">Add asset</h3>
+    <form id="editForm"></form>
+    <div class="sheet-actions">
+      <button class="btn ghost" type="button" id="cancelEditBtn">Cancel</button>
+      <button class="btn primary" type="button" id="saveEditBtn">Save</button>
+    </div>
+    <div class="sheet-actions" id="deleteRow" style="display:none;">
+      <button class="btn danger" type="button" id="deleteEditBtn">Delete this asset</button>
+    </div>
+  </div>
+</div>
+
+<!-- Settings sheet -->
+<div class="sheet-backdrop" id="settingsBackdrop">
+  <div class="sheet">
+    <h3>Sheet settings</h3>
+    <div class="field">
+      <label>Google Spreadsheet ID</label>
+      <input id="settingsSheetId" placeholder="the long ID from the sheet's URL" />
+    </div>
+    <div class="field">
+      <label>Tab (gid) — leave as 0 for the first tab</label>
+      <input id="settingsGid" placeholder="0" />
+    </div>
+    <p style="color:var(--muted);font-size:12.5px;line-height:1.5;margin-top:-4px;">
+      Found in the sheet's URL: <code style="background:rgba(255,255,255,.06);padding:1px 5px;border-radius:4px;">docs.google.com/spreadsheets/d/&lt;ID&gt;/edit#gid=&lt;GID&gt;</code>
+    </p>
+    <div class="sheet-actions">
+      <button class="btn ghost" type="button" id="cancelSettingsBtn">Cancel</button>
+      <button class="btn primary" type="button" id="saveSettingsBtn">Save & reload</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+<script>
+/* =========================================================================
+   CONFIG — edit these two lines before you deploy.
+   See SETUP.md for how to get an OAuth Client ID.
+   ========================================================================= */
+const CONFIG = {
+  GOOGLE_CLIENT_ID: "YOUR_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com",
+  DEFAULT_SPREADSHEET_ID: "1M6QumdJ0TzUD_ogxrGEHJmNYAtzcAJ97m2pXCqP3kMk",
+  DEFAULT_GID: "0",
+};
+const SCOPES = "https://www.googleapis.com/auth/spreadsheets";
+/* ========================================================================= */
+
+const LS_KEY_SHEET = "assetTracker.sheetConfig";
+const LS_KEY_TOKEN = "assetTracker.tokenCache"; // in-memory-ish; access tokens are short-lived
+
+let state = {
+  tokenClient: null,
+  accessToken: null,
+  tokenExpiresAt: 0,
+  sheetTitle: null,
+  sheetGid: null,
+  headers: [],       // column headers from row 1
+  rows: [],          // array of {rowNumber, values: {header: value}}
+  valueColIndex: -1, // index into headers for the numeric "value/amount" column
+  categoryColIndex: -1,
+  editingRowNumber: null, // null = adding new
+};
+
+// ---------- small utils ----------
+function $(id){ return document.getElementById(id); }
+function showToast(msg){
+  const t = $("toast");
+  t.textContent = msg;
+  t.classList.add("show");
+  clearTimeout(showToast._h);
+  showToast._h = setTimeout(()=>t.classList.remove("show"), 2600);
+}
+function getSheetConfig(){
+  try{
+    const saved = JSON.parse(localStorage.getItem(LS_KEY_SHEET) || "{}");
+    return {
+      spreadsheetId: saved.spreadsheetId || CONFIG.DEFAULT_SPREADSHEET_ID,
+      gid: saved.gid !== undefined ? saved.gid : CONFIG.DEFAULT_GID,
+    };
+  }catch(e){
+    return { spreadsheetId: CONFIG.DEFAULT_SPREADSHEET_ID, gid: CONFIG.DEFAULT_GID };
+  }
+}
+function saveSheetConfig(spreadsheetId, gid){
+  localStorage.setItem(LS_KEY_SHEET, JSON.stringify({ spreadsheetId, gid }));
+}
+function colLetter(n){ // 0-based index -> A1 column letter
+  let s = "";
+  n = n + 1;
+  while (n > 0){
+    const rem = (n - 1) % 26;
+    s = String.fromCharCode(65 + rem) + s;
+    n = Math.floor((n - 1) / 26);
+  }
+  return s;
+}
+function guessValueColumn(headers){
+  const names = ["value","current value","market value","amount","balance","worth","price","total value"];
+  let idx = headers.findIndex(h => names.includes(String(h).trim().toLowerCase()));
+  if (idx === -1) idx = headers.findIndex(h => /value|amount|balance|worth|price/i.test(String(h)));
+  return idx;
+}
+function guessCategoryColumn(headers){
+  const names = ["category","type","asset type","class","asset class"];
+  return headers.findIndex(h => names.includes(String(h).trim().toLowerCase()));
+}
+function parseNumber(v){
+  if (v === undefined || v === null) return 0;
+  const n = parseFloat(String(v).replace(/[^0-9.\-]/g, ""));
+  return isNaN(n) ? 0 : n;
+}
+function formatMoney(n){
+  const sign = n < 0 ? "-" : "";
+  return sign + "$" + Math.abs(n).toLocaleString(undefined, { maximumFractionDigits: 2 });
+}
+
+// ---------- config warning ----------
+function checkConfigWarning(){
+  if (CONFIG.GOOGLE_CLIENT_ID.startsWith("YOUR_GOOGLE_OAUTH_CLIENT_ID")){
+    $("configWarning").style.display = "block";
+    $("configWarning").innerHTML =
+      "Setup needed: open <code>index.html</code> and set <code>GOOGLE_CLIENT_ID</code> " +
+      "in the CONFIG block near the bottom. See SETUP.md for the 5-minute walkthrough.";
+    return true;
+  }
+  $("configWarning").style.display = "none";
+  return false;
+}
+
+// ---------- auth ----------
+function initAuth(){
+  if (!window.google || !google.accounts || !google.accounts.oauth2){
+    setTimeout(initAuth, 200);
+    return;
+  }
+  state.tokenClient = google.accounts.oauth2.initTokenClient({
+    client_id: CONFIG.GOOGLE_CLIENT_ID,
+    scope: SCOPES,
+    callback: (resp) => {
+      if (resp.error){
+        console.error(resp);
+        showToast("Sign-in failed: " + resp.error);
+        return;
+      }
+      state.accessToken = resp.access_token;
+      state.tokenExpiresAt = Date.now() + (resp.expires_in * 1000) - 60000;
+      onSignedIn();
+    },
+  });
+  $("signInBtn").addEventListener("click", () => {
+    if (checkConfigWarning()){
+      showToast("Add your OAuth Client ID first — see SETUP.md");
+      return;
+    }
+    state.tokenClient.requestAccessToken({ prompt: "consent" });
+  });
+  // try a silent sign-in on load (works if the user already granted access this browser session)
+  if (!checkConfigWarning()){
+    state.tokenClient.requestAccessToken({ prompt: "" });
+  } else {
+    $("gate").style.display = "flex";
+  }
+}
+function ensureFreshToken(){
+  return new Promise((resolve, reject) => {
+    if (state.accessToken && Date.now() < state.tokenExpiresAt){
+      resolve(state.accessToken);
+      return;
+    }
+    const prevCallback = state.tokenClient.callback;
+    state.tokenClient.callback = (resp) => {
+      state.tokenClient.callback = prevCallback;
+      if (resp.error){ reject(resp); return; }
+      state.accessToken = resp.access_token;
+      state.tokenExpiresAt = Date.now() + (resp.expires_in * 1000) - 60000;
+      resolve(state.accessToken);
+    };
+    state.tokenClient.requestAccessToken({ prompt: "" });
+  });
+}
+
+function onSignedIn(){
+  $("gate").style.display = "none";
+  loadSheet();
+}
+
+// ---------- Sheets API ----------
+async function apiFetch(url, opts = {}){
+  const token = await ensureFreshToken();
+  const res = await fetch(url, {
+    ...opts,
+    headers: {
+      ...(opts.headers || {}),
+      Authorization: "Bearer " + token,
+      "Content-Type": "application/json",
+    },
+  });
+  if (!res.ok){
+    const body = await res.text();
+    throw new Error("API error " + res.status + ": " + body);
+  }
+  if (res.status === 204) return null;
+  return res.json();
+}
+
+async function loadSheet(){
+  setStatus("pending", "Syncing…");
+  $("loadingState").style.display = "block";
+  $("content").style.display = "none";
+  $("addFab").style.display = "none";
+  $("totalBlock").style.display = "none";
+
+  try{
+    const { spreadsheetId, gid } = getSheetConfig();
+
+    // 1) find the sheet title matching this gid
+    const meta = await apiFetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}?fields=sheets.properties`
+    );
+    const sheets = meta.sheets || [];
+    const match = sheets.find(s => String(s.properties.sheetId) === String(gid)) || sheets[0];
+    if (!match) throw new Error("Couldn't find a tab in that spreadsheet.");
+    state.sheetTitle = match.properties.title;
+    state.sheetGid = match.properties.sheetId;
+
+    // 2) pull all values
+    const range = `'${state.sheetTitle}'!A1:ZZ1000`;
+    const data = await apiFetch(
+      `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}`
+    );
+    const values = data.values || [];
+    const headers = (values[0] || []).map(h => String(h || "").trim()).filter((h,i,arr)=> true);
+    state.headers = headers;
+    state.valueColIndex = guessValueColumn(headers);
+    state.categoryColIndex = guessCategoryColumn(headers);
+
+    state.rows = values.slice(1)
+      .map((r, i) => ({ rowNumber: i + 2, cells: r }))
+      .filter(r => r.cells.some(c => String(c || "").trim() !== ""));
+
+    localStorage.setItem("assetTracker.lastGood." + spreadsheetId, JSON.stringify({
+      headers: state.headers, rows: state.rows, savedAt: Date.now(),
+    }));
+
+    render();
+    setStatus("ok", "Synced just now");
+  }catch(err){
+    console.error(err);
+    const cached = tryLoadCache();
+    if (cached){
+      state.headers = cached.headers;
+      state.rows = cached.rows;
+      state.valueColIndex = guessValueColumn(state.headers);
+      state.categoryColIndex = guessCategoryColumn(state.headers);
+      render();
+      setStatus("err", "Offline — showing last synced data");
+    } else {
+      $("loadingState").innerHTML = "Couldn't load your sheet.<br><small style='color:var(--muted)'>" +
+        String(err.message || err).slice(0, 200) + "</small>";
+      setStatus("err", "Sync failed");
+    }
+  }
+}
+function tryLoadCache(){
+  try{
+    const { spreadsheetId } = getSheetConfig();
+    const raw = localStorage.getItem("assetTracker.lastGood." + spreadsheetId);
+    return raw ? JSON.parse(raw) : null;
+  }catch(e){ return null; }
+}
+function setStatus(kind, text){
+  $("statusDot").className = "statusdot " + kind;
+  $("statusText").textContent = text;
+}
+
+// ---------- render ----------
+function render(){
+  $("loadingState").style.display = "none";
+  $("content").style.display = "block";
+  $("addFab").style.display = "flex";
+  $("totalBlock").style.display = "block";
+
+  // total
+  let total = 0;
+  if (state.valueColIndex >= 0){
+    total = state.rows.reduce((sum, r) => sum + parseNumber(r.cells[state.valueColIndex]), 0);
+  }
+  $("totalValue").innerHTML = (state.valueColIndex >= 0 ? formatMoney(total) : "—") +
+    "<small>" + state.rows.length + " asset" + (state.rows.length === 1 ? "" : "s") + "</small>";
+
+  // breakdown by category
+  const breakdownEl = $("breakdown");
+  breakdownEl.innerHTML = "";
+  if (state.categoryColIndex >= 0 && state.valueColIndex >= 0 && state.rows.length){
+    const byCat = {};
+    state.rows.forEach(r => {
+      const cat = String(r.cells[state.categoryColIndex] || "Uncategorized").trim() || "Uncategorized";
+      byCat[cat] = (byCat[cat] || 0) + parseNumber(r.cells[state.valueColIndex]);
+    });
+    const max = Math.max(...Object.values(byCat), 1);
+    $("breakdownTitle").style.display = "block";
+    Object.entries(byCat).sort((a,b)=>b[1]-a[1]).forEach(([cat, amt]) => {
+      const row = document.createElement("div");
+      row.className = "row";
+      row.innerHTML = `
+        <div class="label">${escapeHtml(cat)}</div>
+        <div class="bar-track"><div class="bar-fill" style="width:${Math.max(4,(amt/max)*100)}%"></div></div>
+        <div class="amt">${formatMoney(amt)}</div>`;
+      breakdownEl.appendChild(row);
+    });
+  } else {
+    $("breakdownTitle").style.display = "none";
+  }
+
+  // asset list
+  const listEl = $("assetList");
+  listEl.innerHTML = "";
+  $("emptyState").style.display = state.rows.length ? "none" : "block";
+
+  const nameColIndex = 0; // first column is treated as the primary label
+  state.rows.forEach(r => {
+    const name = r.cells[nameColIndex] || "(untitled)";
+    const valueText = state.valueColIndex >= 0 ? formatMoney(parseNumber(r.cells[state.valueColIndex])) : "";
+    const metaParts = state.headers
+      .map((h, i) => (i !== nameColIndex && i !== state.valueColIndex && r.cells[i]) ? `${h}: ${r.cells[i]}` : null)
+      .filter(Boolean);
+    const card = document.createElement("div");
+    card.className = "card asset";
+    card.innerHTML = `
+      <div>
+        <div class="name">${escapeHtml(String(name))}</div>
+        <div class="meta">${escapeHtml(metaParts.join(" · "))}</div>
+      </div>
+      <div style="text-align:right;display:flex;align-items:center;gap:4px;">
+        <div class="value">${valueText}</div>
+        <span class="chev">&#8250;</span>
+      </div>`;
+    card.addEventListener("click", () => openEditSheet(r.rowNumber));
+    listEl.appendChild(card);
+  });
+}
+function escapeHtml(s){
+  return String(s).replace(/[&<>"']/g, c => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;" }[c]));
+}
+
+// ---------- add / edit sheet ----------
+function buildForm(existingCells){
+  const form = $("editForm");
+  form.innerHTML = "";
+  state.headers.forEach((h, i) => {
+    const isNumeric = i === state.valueColIndex;
+    const field = document.createElement("div");
+    field.className = "field";
+    field.innerHTML = `
+      <label>${escapeHtml(h || ("Column " + colLetter(i)))}</label>
+      <input type="${isNumeric ? "number" : "text"}" ${isNumeric ? 'step="0.01"' : ""}
+             data-col="${i}" value="${escapeHtml(existingCells ? (existingCells[i] || "") : "")}" />`;
+    form.appendChild(field);
+  });
+}
+function openAddSheet(){
+  state.editingRowNumber = null;
+  $("editTitle").textContent = "Add asset";
+  $("deleteRow").style.display = "none";
+  buildForm(null);
+  $("editBackdrop").classList.add("open");
+}
+function openEditSheet(rowNumber){
+  const r = state.rows.find(x => x.rowNumber === rowNumber);
+  if (!r) return;
+  state.editingRowNumber = rowNumber;
+  $("editTitle").textContent = "Edit asset";
+  $("deleteRow").style.display = "flex";
+  buildForm(r.cells);
+  $("editBackdrop").classList.add("open");
+}
+function closeEditSheet(){
+  $("editBackdrop").classList.remove("open");
+}
+function collectFormValues(){
+  const inputs = $("editForm").querySelectorAll("input[data-col]");
+  const arr = new Array(state.headers.length).fill("");
+  inputs.forEach(inp => { arr[parseInt(inp.dataset.col, 10)] = inp.value; });
+  return arr;
+}
+
+async function saveEdit(){
+  const values = collectFormValues();
+  const { spreadsheetId } = getSheetConfig();
+  const saveBtn = $("saveEditBtn");
+  saveBtn.disabled = true;
+  saveBtn.innerHTML = '<span class="spin"></span>Saving…';
+  try{
+    if (state.editingRowNumber === null){
+      // append
+      const range = `'${state.sheetTitle}'!A:${colLetter(state.headers.length - 1)}`;
+      await apiFetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}:append?valueInputOption=USER_ENTERED&insertDataOption=INSERT_ROWS`,
+        { method: "POST", body: JSON.stringify({ values: [values] }) }
+      );
+      showToast("Asset added");
+    } else {
+      const range = `'${state.sheetTitle}'!A${state.editingRowNumber}:${colLetter(state.headers.length - 1)}${state.editingRowNumber}`;
+      await apiFetch(
+        `https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}/values/${encodeURIComponent(range)}?valueInputOption=USER_ENTERED`,
+        { method: "PUT", body: JSON.stringify({ values: [values] }) }
+      );
+      showToast("Asset updated");
+    }
+    closeEditSheet();
+    await loadSheet();
+  }catch(err){
+    console.error(err);
+    showToast("Couldn't save — check your connection");
+  }finally{
+    saveBtn.disabled = false;
+    saveBtn.textContent = "Save";
+  }
+}
+
+async function deleteEdit(){
+  if (state.editingRowNumber === null) return;
+  if (!confirm("Delete this asset from the spreadsheet?")) return;
+  const { spreadsheetId } = getSheetConfig();
+  const rowNumber = state.editingRowNumber;
+  try{
+    await apiFetch(`https://sheets.googleapis.com/v4/spreadsheets/${spreadsheetId}:batchUpdate`, {
+      method: "POST",
+      body: JSON.stringify({
+        requests: [{
+          deleteDimension: {
+            range: {
+              sheetId: state.sheetGid,
+              dimension: "ROWS",
+              startIndex: rowNumber - 1,
+              endIndex: rowNumber,
+            },
+          },
+        }],
+      }),
+    });
+    showToast("Asset deleted");
+    closeEditSheet();
+    await loadSheet();
+  }catch(err){
+    console.error(err);
+    showToast("Couldn't delete — check your connection");
+  }
+}
+
+// ---------- settings ----------
+function openSettings(){
+  const cfg = getSheetConfig();
+  $("settingsSheetId").value = cfg.spreadsheetId;
+  $("settingsGid").value = cfg.gid;
+  $("settingsBackdrop").classList.add("open");
+}
+function closeSettings(){ $("settingsBackdrop").classList.remove("open"); }
+function saveSettings(){
+  const id = $("settingsSheetId").value.trim();
+  const gid = $("settingsGid").value.trim() || "0";
+  if (!id){ showToast("Enter a spreadsheet ID"); return; }
+  saveSheetConfig(id, gid);
+  closeSettings();
+  if (state.accessToken) loadSheet();
+}
+
+// ---------- wire up ----------
+window.addEventListener("DOMContentLoaded", () => {
+  checkConfigWarning();
+  $("gate").style.display = "flex";
+  $("refreshBtn").addEventListener("click", loadSheet);
+  $("addFab").addEventListener("click", openAddSheet);
+  $("cancelEditBtn").addEventListener("click", closeEditSheet);
+  $("saveEditBtn").addEventListener("click", saveEdit);
+  $("deleteEditBtn").addEventListener("click", deleteEdit);
+  $("settingsFromGateBtn").addEventListener("click", openSettings);
+  $("cancelSettingsBtn").addEventListener("click", closeSettings);
+  $("saveSettingsBtn").addEventListener("click", saveSettings);
+  initAuth();
+
+  if ("serviceWorker" in navigator){
+    navigator.serviceWorker.register("sw.js").catch(() => {});
+  }
+});
+</script>
+</body>
+</html>
